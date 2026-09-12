@@ -19,11 +19,11 @@ if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação do patch' }
 $outputPath = Join-Path $buildPath ('transfer-test-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.exe')
 & "$jdkPath\java.exe" @exports -cp "$buildPath\classes;$buildPath\game.jar" PatchTransfers "$projectPath\bf 26-27 - patrocinio.exe" "$buildPath\classes" $outputPath
 if ($LASTEXITCODE -ne 0) { throw 'Falha na geração do executável de teste' }
-& "$jdkPath\javac.exe" -encoding UTF-8 -cp "$buildPath\game.jar;$buildPath\classes" -d "$buildPath\test-classes" "$PSScriptRoot\TransferIntegrationTest.java"
+& "$jdkPath\javac.exe" -encoding UTF-8 -cp "$buildPath\classes;$buildPath\game.jar" -d "$buildPath\test-classes" "$PSScriptRoot\TransferIntegrationTest.java"
 if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação dos testes de integração' }
 & "$jdkPath\java.exe" -Xverify:all -cp "$outputPath;$buildPath\test-classes" mods.TransferIntegrationTest
 if ($LASTEXITCODE -ne 0) { throw 'Falha nos testes de integração; não instale este executável' }
-& "$jdkPath\javac.exe" -encoding UTF-8 -cp "$buildPath\game.jar;$buildPath\classes" -d "$buildPath\test-classes" "$PSScriptRoot\SponsorshipStateTest.java"
+& "$jdkPath\javac.exe" -encoding UTF-8 -cp "$buildPath\classes;$buildPath\game.jar" -d "$buildPath\test-classes" "$PSScriptRoot\SponsorshipStateTest.java"
 if ($LASTEXITCODE -ne 0) { throw 'Falha na compilação do teste de patrocínio' }
 & "$jdkPath\java.exe" -Xverify:all -cp "$outputPath;$buildPath\test-classes" mods.SponsorshipStateTest
 if ($LASTEXITCODE -ne 0) { throw 'Falha no teste de patrocínio; não instale este executável' }

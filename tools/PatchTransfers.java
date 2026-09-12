@@ -22,11 +22,9 @@ public final class PatchTransfers {
         for(String name:new String[]{"a/iA","a/cz","a/jm","best/F","best/ah","mods/SponsorshipLauncher$Store"}) {
             ClassNode node=new ClassNode();new ClassReader(entries.get(name+".class")).accept(node,0);
             if(name.equals("best/F")) {
-                if(node.fields.stream().noneMatch(f->f.name.equals("enhancedNegotiations")))
-                    node.fields.add(new FieldNode(Opcodes.ACC_PUBLIC,"enhancedNegotiations","Ljava/util/HashMap;",null,null));
+                node.fields.removeIf(f->f.name.equals("enhancedNegotiations"));
             } else if(name.equals("best/ah")) {
-                if(node.fields.stream().noneMatch(f->f.name.equals("enhancedSponsorshipContract")))
-                    node.fields.add(new FieldNode(Opcodes.ACC_PUBLIC,"enhancedSponsorshipContract","Ljava/lang/String;",null,null));
+                node.fields.removeIf(f->f.name.equals("enhancedSponsorshipContract"));
             } else if(name.equals("mods/SponsorshipLauncher$Store")) {
                 for(MethodNode m:node.methods) {
                     String target=m.name.equals("contractFor")?"contractFor":m.name.equals("save")?"save":m.name.equals("settleNewSeasons")?"settleNewSeasons":null;

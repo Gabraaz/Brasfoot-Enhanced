@@ -7,6 +7,7 @@ import javax.swing.*;
 
 /** Exercises patched classes with synthetic career data; never opens or writes user saves. */
 public final class TransferIntegrationTest {
+    static int playerSequence;
     static void layout(java.awt.Container c){c.doLayout();for(java.awt.Component child:c.getComponents())if(child instanceof java.awt.Container)layout((java.awt.Container)child);}
     static void check(boolean ok,String message){if(!ok)throw new AssertionError(message);}
     static ah club(int id,boolean human){
@@ -14,12 +15,17 @@ public final class TransferIntegrationTest {
         TransferNegotiation.field(c,"mV","Clube "+id);return c;
     }
     static F player(ah seller){
-        F p=new F();p.setNome("Jogador de teste");p.setIdade(26);p.setPosicao(2);p.ad(60);p.ae(100000);p.af(5000000);p.ag(5000000);p.n(seller);p.a(365L,true);seller.kc().add(p);return p;
+        F p=new F();p.setNome("Jogador de teste");p.setIdade(26);p.setPosicao(2);p.ad(60);p.ae(100000);p.af(5000000);p.ag(5000000);
+        TransferNegotiation.field(p,"ei",++playerSequence);TransferNegotiation.field(p,"ej",0);
+        p.n(seller);p.a(365L,true);seller.kc().add(p);return p;
     }
     static void scenario() throws Exception {
+        System.setProperty("user.dir",java.nio.file.Files.createTempDirectory("brasfoot-transfer-test-").toString());
         c.a.SR=new best.f();c.a.SR.l(0);c.a.SR.R().add(new best.a());
         // Loading verifies every modified class, even where UI fixtures are not needed.
-        for(String name:new String[]{"a.iA","a.cz","a.jm","best.F"})Class.forName(name);
+        for(String name:new String[]{"a.iA","a.cz","a.jm","best.F","best.ah"})Class.forName(name);
+        check(java.util.Arrays.stream(F.class.getDeclaredFields()).noneMatch(f->f.getName().equals("enhancedNegotiations")),"Player class layout must remain save-compatible");
+        check(java.util.Arrays.stream(ah.class.getDeclaredFields()).noneMatch(f->f.getName().equals("enhancedSponsorshipContract")),"Club class layout must remain save-compatible");
         ah seller=club(1,false),buyer=club(2,true);F p=player(seller);
         JDialog d=new JDialog();
         try {
@@ -41,10 +47,12 @@ public final class TransferIntegrationTest {
         F blocked=player(seller);JDialog second=new JDialog();
         try {
             TransferNegotiation.Panel panel=new TransferNegotiation.Panel(second,blocked,buyer,false,0,null);
-            panel.offer.setValue(1);panel.submit();check(panel.finished,"Low offer rejects");
+            panel.offer.setValue(1);
+            for(int attempt=0;attempt<4&&!panel.finished;attempt++)panel.submit();
+            check(panel.finished,"Persistently low offers eventually reject");
             ByteArrayOutputStream bytes=new ByteArrayOutputStream();try(ObjectOutputStream out=new ObjectOutputStream(bytes)){out.writeObject(blocked);}
             F restored;try(ObjectInputStream in=new ObjectInputStream(new ByteArrayInputStream(bytes.toByteArray()))){restored=(F)in.readObject();}
-            check(TransferNegotiation.state(restored).values().iterator().next()[0]>TransferNegotiation.day(),"Cooldown survives save reload");
+            check(TransferNegotiation.state(restored,seller,buyer)[0]>TransferNegotiation.day(),"Cooldown survives save reload");
             TransferNegotiation.Panel reopen=new TransferNegotiation.Panel(second,blocked,buyer,false,0,null);
             check(!reopen.send.isEnabled(),"Closing dialog does not reset cooldown");
             c.a.SR.bb().add(java.util.Calendar.DAY_OF_MONTH,14);

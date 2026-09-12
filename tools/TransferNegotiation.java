@@ -3,14 +3,16 @@ package mods;
 import best.F;
 import best.ah;
 import java.lang.reflect.Field;
-import java.util.HashMap;
+import java.io.*;
+import java.nio.file.*;
+import java.util.Properties;
 import java.util.Random;
 import java.awt.*;
 import java.awt.event.*;
 import javax.swing.*;
 import static mods.NegotiationRules.*;
 
-/** Adapter for verified career fields; state is stored with the player in the save. */
+/** Adapter for verified career fields; mod state is stored externally per save. */
 public final class TransferNegotiation {
     private TransferNegotiation() {}
 
@@ -34,14 +36,33 @@ public final class TransferNegotiation {
         }
     }
 
-    @SuppressWarnings("unchecked")
-    static HashMap<String, long[]> state(F player) {
-        HashMap<String, long[]> result = (HashMap<String, long[]>) field(player, "enhancedNegotiations");
-        if (result == null) {
-            result = new HashMap<>();
-            field(player, "enhancedNegotiations", result);
-        }
-        return result;
+    static File stateFile() { return new File(new File(System.getProperty("user.dir"),"mods"),"negociacoes.properties"); }
+    static String careerKey() {
+        String key=c.a.SR==null||c.a.SR.bs()==null?null:c.a.SR.bs().getTc();
+        return key==null||key.trim().isEmpty()?"carreira-padrao":key.trim();
+    }
+    static String stateKey(F player,ah seller,ah buyer) {
+        int first=(Integer)field(player,"ei"),second=(Integer)field(player,"ej");
+        String identity=first>=0||second>=0?first+":"+second:player.getNome()+":"+player.getIdade()+":"+player.getPais();
+        return careerKey()+"#"+seller.lk()+"#"+buyer.lk()+"#"+identity;
+    }
+    static synchronized long[] state(F player,ah seller,ah buyer) {
+        Properties p=loadState();String key=stateKey(player,seller,buyer),value=p.getProperty(key);
+        if(value!=null)try{String[] parts=value.split("\\|",-1);return new long[]{Long.parseLong(parts[0]),Long.parseLong(parts[1])};}catch(RuntimeException ignored){}
+        long[] created={0,new Random().nextLong()};p.setProperty(key,created[0]+"|"+created[1]);writeState(p);return created;
+    }
+    static synchronized void saveState(F player,ah seller,ah buyer,long[] state) {
+        Properties p=loadState();p.setProperty(stateKey(player,seller,buyer),state[0]+"|"+state[1]);writeState(p);
+    }
+    static Properties loadState(){Properties p=new Properties();File f=stateFile();if(!f.isFile())return p;try(InputStream in=new FileInputStream(f)){p.load(in);}catch(IOException ignored){}return p;}
+    static void writeState(Properties p){
+        File f=stateFile(),parent=f.getParentFile();if(!parent.isDirectory()&&!parent.mkdirs())throw new IllegalStateException("Não foi possível criar a pasta mods");
+        Path temp=new File(parent,"negociacoes.tmp").toPath();
+        try(OutputStream out=Files.newOutputStream(temp)){p.store(out,"Brasfoot Enhanced negotiations");}
+        catch(IOException e){throw new IllegalStateException("Não foi possível salvar a negociação",e);}
+        try{Files.move(temp,f.toPath(),StandardCopyOption.REPLACE_EXISTING,StandardCopyOption.ATOMIC_MOVE);}
+        catch(AtomicMoveNotSupportedException e){try{Files.move(temp,f.toPath(),StandardCopyOption.REPLACE_EXISTING);}catch(IOException x){throw new IllegalStateException("Não foi possível salvar a negociação",x);}}
+        catch(IOException e){throw new IllegalStateException("Não foi possível salvar a negociação",e);}
     }
 
     static long day() {
@@ -143,7 +164,7 @@ public final class TransferNegotiation {
         int rounds,salaryRounds,agreed,counter,lastOffer,lastDemand,currentBuyerOffer; boolean started,finished,contract;
         Panel(JDialog d,F p,ah b,boolean received,int initial,Object h) {
             dialog=d;player=p;buyer=b;seller=p.fg();incoming=received;host=h;ctx=context(p,b);
-            record=state(p).computeIfAbsent(seller.lk()+":"+buyer.lk(),k->new long[]{0,new Random().nextLong()});
+            record=state(p,seller,buyer);
             variation=new Random(record[1]).nextDouble()*.06-.03;
             minimum=sellerMinimum(ctx,variation);
             floor=sellerFloor(ctx,minimum);
@@ -178,8 +199,8 @@ public final class TransferNegotiation {
         int value(JSpinner input){try{input.commitEdit();}catch(java.text.ParseException e){throw new IllegalArgumentException("Valor inválido.");}return ((Number)input.getValue()).intValue();}
         void interest(){interest.setText("Interesse do jogador: "+interestLabel(NegotiationRules.interest(ctx,((Number)wage.getValue()).intValue(),variation*100)));}
         @Override public void disable(){send.setEnabled(false);accept.setEnabled(false);}
-        void begin(){if(!started){started=true;record[0]=day()+COOLDOWN_DAYS;}}
-        void finish(){if(started&&!finished){record[0]=day()+COOLDOWN_DAYS;finished=true;}}
+        void begin(){if(!started){started=true;record[0]=day()+COOLDOWN_DAYS;saveState(player,seller,buyer,record);}}
+        void finish(){if(started&&!finished){record[0]=day()+COOLDOWN_DAYS;saveState(player,seller,buyer,record);finished=true;}}
         boolean valid(){
             if(finished||(!started&&record[0]>day()))return false;
             if(player.fg()!=seller||!seller.kc().contains(player)||buyer.kc().contains(player)){reject("O jogador mudou de clube.");return false;}
