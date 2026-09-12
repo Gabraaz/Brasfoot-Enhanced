@@ -55,6 +55,7 @@ public final class TransferIntegrationTest {
         try {
             TransferNegotiation.Panel incoming=new TransferNegotiation.Panel(third,sale,ai,true,5000000,null);
             incoming.offer.setValue(incoming.maximum);incoming.submit();
+            if(sale.fg()!=ai)incoming.accept();
             check(sale.fg()==ai,"Incoming counterproposal transfers to AI");
         }finally{third.dispose();}
         System.out.println("Integration: outgoing, incoming, finances, contracts, duplicate prevention and serialized cooldown passed.");

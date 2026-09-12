@@ -17,7 +17,7 @@ Comportamento implementado:
 
 - Mercado `a.iA`: Comprar quando à venda; Fazer Proposta nos demais casos. Mantém a verificação de registro para ofertas fora da lista.
 - Fluxos `a.cz` e `a.jm`: negociação de compra e de ofertas recebidas; os caminhos de empréstimo existentes são preservados.
-- Três rodadas por etapa; preço de venda fixo para atletas à venda; acordo salarial e duração antes de transferir.
+- Quatro rodadas por etapa. Cada lado possui alvo, limite e paciência: contrapropostas cedem progressivamente quando a outra parte melhora a oferta, mas propostas fracas, repetidas ou abusivas podem encerrar a conversa.
 - Bloqueio de 14 dias pelo calendário da carreira. Campo adicional `best.F.enhancedNegotiations`, um HashMap serializável, mantendo serialVersionUID=1. Saves antigos inicializam o campo sob demanda.
 - Método nativo efetiva mudança de elenco e histórico; caixa dos clubes da IA é ajustado uma vez, pois o método original só contabiliza os humanos.
 - Satisfação é um modelo novo estimado por utilização na temporada, salário relativo, prazo contratual e lista de venda. Utilização usa partidas, não minutos. Potencial é estimado por idade e força. Reputação nativa de 1–5 é normalizada para 0–100.
@@ -30,3 +30,5 @@ Limitações explícitas desta versão:
 - Bônus, cláusulas e empréstimos não foram ampliados nesta etapa.
 
 Testes: rejeição/contraproposta/aceite, influência de salário e reputação, orçamento, limite de rodadas, transferência nativa, débito/crédito único, prazo e salário, bloqueio serializado e expiração após 14 dias.
+
+Patrocínio: o contrato passa a ser salvo no próprio clube da carreira (`best.ah.enhancedSponsorshipContract`). Contratos antigos do arquivo `mods/patrocinios.properties` são migrados na primeira leitura. O texto da partida/rodada deixa de compor a identidade persistente.

@@ -10,8 +10,14 @@ public final class NegotiationRulesTest {
         int normal=NegotiationRules.sellerMinimum(c,0);
         check(NegotiationRules.sellerDecision(normal,normal,1)==NegotiationRules.Decision.ACCEPT,"Accept price");
         check(NegotiationRules.sellerDecision((int)(normal*.8),normal,1)==NegotiationRules.Decision.COUNTER,"Counter close price");
-        check(NegotiationRules.sellerDecision((int)(normal*.8),normal,3)==NegotiationRules.Decision.REJECT,"Round limit");
-        check(NegotiationRules.sellerDecision(normal,normal,4)==NegotiationRules.Decision.REJECT,"No fourth round");
+        int floor=NegotiationRules.sellerFloor(c,normal);
+        check(floor<normal,"Seller has room to concede");
+        check(NegotiationRules.nextSellerAsk((int)(normal*.85),0,normal,floor,1,0)==normal,"First counter keeps target");
+        int lower=NegotiationRules.nextSellerAsk((int)(normal*.90),(int)(normal*.85),normal,floor,2,0);
+        check(lower<normal&&lower>=floor,"Second counter concedes without crossing floor");
+        check(NegotiationRules.sellerRound((int)(normal*.70),0,normal,floor,1,0)==NegotiationRules.Decision.REJECT,"Low offer rejected");
+        check(NegotiationRules.sellerRound(floor-1,(int)(normal*.85),lower,floor,4,0)==NegotiationRules.Decision.REJECT,"Final floor enforced");
+        check(NegotiationRules.sellerRound(floor,(int)(normal*.85),lower,floor,4,0)==NegotiationRules.Decision.ACCEPT,"Final acceptable offer");
         c.contractDays=60;check(NegotiationRules.sellerMinimum(c,0)<normal,"Expiring contract discount");
         c.listed=true;check(NegotiationRules.sellerMinimum(c,.03)==c.asking,"Listed price fixed");c.listed=false;
         double neutral=NegotiationRules.interest(c,c.salary,0);c.buyerReputation=90;
@@ -22,6 +28,8 @@ public final class NegotiationRulesTest {
         c.buyerCash=1234;check(NegotiationRules.buyerMaximum(c,0)<=1234,"Budget capped");
         check(NegotiationRules.buyerDecision(200,100,1)==NegotiationRules.Decision.REJECT,"Buyer refuses unreasonable demand");
         check(NegotiationRules.money(Double.MAX_VALUE)>0,"No monetary overflow");
-        System.out.println("12 verificações de negociação passaram.");
+        check(NegotiationRules.buyerRound(200,0,100,150,1,0)==NegotiationRules.Decision.REJECT,"Buyer refuses excessive demand");
+        check(NegotiationRules.nextBuyerOffer(140,150,100,150,2,0)>100,"Buyer improves counteroffer");
+        System.out.println("18 verificações de negociação passaram.");
     }
 }

@@ -18,11 +18,27 @@ public final class PatchTransfers {
             ZipEntry e;while((e=zip.getNextEntry())!=null)entries.put(e.getName(),zip.readAllBytes());
         }
         int hooks=0;
-        for(String name:new String[]{"a/iA","a/cz","a/jm","best/F"}) {
+        int storePatches=0;
+        for(String name:new String[]{"a/iA","a/cz","a/jm","best/F","best/ah","mods/SponsorshipLauncher$Store"}) {
             ClassNode node=new ClassNode();new ClassReader(entries.get(name+".class")).accept(node,0);
             if(name.equals("best/F")) {
                 if(node.fields.stream().noneMatch(f->f.name.equals("enhancedNegotiations")))
                     node.fields.add(new FieldNode(Opcodes.ACC_PUBLIC,"enhancedNegotiations","Ljava/util/HashMap;",null,null));
+            } else if(name.equals("best/ah")) {
+                if(node.fields.stream().noneMatch(f->f.name.equals("enhancedSponsorshipContract")))
+                    node.fields.add(new FieldNode(Opcodes.ACC_PUBLIC,"enhancedSponsorshipContract","Ljava/lang/String;",null,null));
+            } else if(name.equals("mods/SponsorshipLauncher$Store")) {
+                for(MethodNode m:node.methods) {
+                    String target=m.name.equals("contractFor")?"contractFor":m.name.equals("save")?"save":m.name.equals("settleNewSeasons")?"settleNewSeasons":null;
+                    if(target==null)continue;
+                    m.instructions.clear();m.tryCatchBlocks.clear();if(m.localVariables!=null)m.localVariables.clear();
+                    m.instructions.add(new VarInsnNode(Opcodes.ALOAD,0));
+                    if(target.equals("save"))m.instructions.add(new VarInsnNode(Opcodes.ALOAD,1));
+                    String desc=target.equals("contractFor")?"(Ljava/lang/Object;)Ljava/lang/Object;":target.equals("save")?"(Ljava/lang/Object;Ljava/lang/Object;)V":"(Ljava/lang/Object;)V";
+                    m.instructions.add(new MethodInsnNode(Opcodes.INVOKESTATIC,"mods/SponsorshipState",target,desc,false));
+                    if(target.equals("contractFor"))m.instructions.add(new TypeInsnNode(Opcodes.CHECKCAST,"mods/SponsorshipLauncher$Contract"));
+                    m.instructions.add(new InsnNode(target.equals("contractFor")?Opcodes.ARETURN:Opcodes.RETURN));storePatches++;
+                }
             } else for(MethodNode m:node.methods) {
                 // Rebuilds replace previous hooks rather than stacking another invocation.
                 for(AbstractInsnNode i:m.instructions.toArray())if(i instanceof MethodInsnNode&&((MethodInsnNode)i).owner.equals("mods/TransferNegotiation")){
@@ -42,6 +58,7 @@ public final class PatchTransfers {
             ClassWriter writer=new ClassWriter(ClassWriter.COMPUTE_MAXS|ClassWriter.COMPUTE_FRAMES);node.accept(writer);entries.put(name+".class",writer.toByteArray());
         }
         if(hooks!=6)throw new IllegalStateException("Estrutura inesperada: "+hooks+" hooks (esperado 6)");
+        if(storePatches!=3)throw new IllegalStateException("Estrutura inesperada do patrocínio: "+storePatches+" métodos");
         try(var paths=Files.walk(classes.resolve("mods"))){for(Path file:paths.filter(p->p.toString().endsWith(".class")&&!p.getFileName().toString().contains("Test")).toList())
             entries.put(classes.relativize(file).toString().replace('\\','/'),Files.readAllBytes(file));}
         ByteArrayOutputStream result=new ByteArrayOutputStream();result.write(bytes,0,offset);

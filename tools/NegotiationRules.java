@@ -2,7 +2,7 @@ package mods;
 
 /** Pure negotiation policy. Monetary calculations use long before conversion to game ints. */
 public final class NegotiationRules {
-    public static final int MAX_ROUNDS = 3;
+    public static final int MAX_ROUNDS = 4;
     public static final int COOLDOWN_DAYS = 14;
     public enum Decision { ACCEPT, COUNTER, REJECT }
     public static final class Context {
@@ -27,6 +27,44 @@ public final class NegotiationRules {
         multiplier += c.sellerCash < 0 ? -.16 : c.sellerCash < c.market/4L ? -.07 : .03;
         multiplier += .04*clamp((c.buyerReputation-c.sellerReputation)/50,-1,1);
         return money(c.market*clamp(multiplier+clamp(variation,-.035,.035),.50,1.95));
+    }
+    public static int sellerFloor(Context c, int target) {
+        double factor=.88+.07*c.importance+.03*c.happiness;
+        if(c.contractDays<=90) factor-=.06;
+        if(c.sellerCash<0) factor-=.04;
+        return money(target*clamp(factor,.76,.98));
+    }
+    public static int nextSellerAsk(int offer,int lastOffer,int currentAsk,int floor,int round,double variation) {
+        if(currentAsk<=0)return floor;
+        if(lastOffer<=0)return currentAsk;
+        double progress=Math.max(0,offer-lastOffer);
+        double concession=Math.max(currentAsk*.025,progress*(.38+.10*round+clamp(variation*2,-.08,.08)));
+        return Math.max(floor,money(currentAsk-concession));
+    }
+    public static Decision sellerRound(int offer,int lastOffer,int currentAsk,int floor,int round,double variation) {
+        if(offer<=0||round<1||round>MAX_ROUNDS)return Decision.REJECT;
+        if(currentAsk>0&&offer>=currentAsk)return Decision.ACCEPT;
+        if(round==MAX_ROUNDS)return offer>=floor?Decision.ACCEPT:Decision.REJECT;
+        if(lastOffer>0&&offer<=lastOffer)return Decision.REJECT;
+        double ratio=(double)offer/Math.max(1,floor);
+        double patience=.78+.035*round+clamp(variation,-.03,.03);
+        if(ratio<patience)return Decision.REJECT;
+        // A close offer may still be refused; context variation breaks identical negotiations.
+        if(round>1&&ratio<.92+clamp(-variation,-.025,.025))return Decision.REJECT;
+        return Decision.COUNTER;
+    }
+    public static int nextBuyerOffer(int demand,int lastDemand,int currentOffer,int ceiling,int round,double variation) {
+        double progress=Math.max(0,lastDemand-demand);
+        double increase=Math.max(currentOffer*.025,progress*(.35+.09*round+clamp(variation*2,-.08,.08)));
+        return Math.min(ceiling,money(currentOffer+increase));
+    }
+    public static Decision buyerRound(int demand,int lastDemand,int currentOffer,int ceiling,int round,double variation) {
+        if(demand<=0||round<1||round>MAX_ROUNDS)return Decision.REJECT;
+        if(demand<=currentOffer)return Decision.ACCEPT;
+        if(round==MAX_ROUNDS)return demand<=ceiling?Decision.ACCEPT:Decision.REJECT;
+        if(lastDemand>0&&demand>=lastDemand)return Decision.REJECT;
+        if((double)demand/Math.max(1,ceiling)>1.28+clamp(variation,-.03,.03))return Decision.REJECT;
+        return Decision.COUNTER;
     }
     public static double interest(Context c, int offeredSalary, double variation) {
         double salaryGain=clamp((double)offeredSalary/Math.max(1,c.salary)-1,-.6,1.2);

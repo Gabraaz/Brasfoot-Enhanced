@@ -136,16 +136,17 @@ public final class TransferNegotiation {
 
     static final class Panel extends JPanel {
         final JDialog dialog; final F player; final ah buyer,seller; final boolean incoming; final Object host;
-        final Context ctx; final long[] record; final double variation; final int minimum,maximum;
+        final Context ctx; final long[] record; final double variation; final int minimum,floor,maximum;
         final JTextArea message=new JTextArea(6,40); final JLabel interest=new JLabel();
         final JSpinner offer,wage; final JComboBox<String> term=new JComboBox<>(new String[]{"6 meses","1 ano","2 anos","3 anos"});
         final JButton send=new JButton("Enviar proposta"), accept=new JButton("Aceitar"), close=new JButton("Encerrar negociação");
-        int rounds,salaryRounds,agreed,counter; boolean started,finished,contract;
+        int rounds,salaryRounds,agreed,counter,lastOffer,lastDemand,currentBuyerOffer; boolean started,finished,contract;
         Panel(JDialog d,F p,ah b,boolean received,int initial,Object h) {
             dialog=d;player=p;buyer=b;seller=p.fg();incoming=received;host=h;ctx=context(p,b);
             record=state(p).computeIfAbsent(seller.lk()+":"+buyer.lk(),k->new long[]{0,new Random().nextLong()});
             variation=new Random(record[1]).nextDouble()*.06-.03;
             minimum=sellerMinimum(ctx,variation);
+            floor=sellerFloor(ctx,minimum);
             maximum=Math.max(buyerMaximum(ctx,variation),(int)Math.min(Math.max(0,b.kb()),initial));
             offer=new JSpinner(new SpinnerNumberModel(Math.max(1,received?initial:ctx.listed?ctx.asking:ctx.market),1,Integer.MAX_VALUE-1000,1000));
             wage=new JSpinner(new SpinnerNumberModel(Math.min(100000000,ctx.salary),1,100000000,1000));
@@ -163,7 +164,7 @@ public final class TransferNegotiation {
             message.setEditable(false);message.setLineWrap(true);message.setWrapStyleWord(true);center.add(new JScrollPane(message));
             JPanel buttons=new JPanel(new FlowLayout(FlowLayout.RIGHT));buttons.add(send);buttons.add(accept);buttons.add(close);
             add(header,BorderLayout.NORTH);add(center);add(buttons,BorderLayout.SOUTH);
-            counter=incoming?initial:ctx.listed?ctx.asking:0;accept.setVisible(counter>0);
+            counter=incoming?initial:ctx.listed?ctx.asking:0;currentBuyerOffer=incoming?initial:0;accept.setVisible(counter>0);
             send.setText(incoming?"Enviar contraproposta":"Enviar proposta");
             if(ctx.listed && !incoming){offer.setEnabled(false);send.setVisible(false);accept.setText("Comprar por "+cash(counter));}
             send.addActionListener(e->safely(this::submit));accept.addActionListener(e->safely(this::accept));
@@ -171,7 +172,7 @@ public final class TransferNegotiation {
             dialog.addWindowListener(new WindowAdapter(){public void windowClosing(WindowEvent e){finish();}public void windowClosed(WindowEvent e){finish();}});
             interest();
             if(record[0]>day()){message.setText("Aguarde "+(record[0]-day())+" dias do jogo para negociar novamente.");disable();}
-            else message.setText(incoming?buyer.getNome()+" oferece "+cash(initial)+". Aceite, rejeite ou faça uma contraproposta.":"O acordo exige aprovação do clube e do jogador. Limite: três rodadas por etapa.");
+            else message.setText(incoming?buyer.getNome()+" oferece "+cash(initial)+". Aceite, rejeite ou faça uma contraproposta.":"O acordo exige aprovação do clube e do jogador. Limite: quatro rodadas por etapa.");
         }
         void safely(Runnable action){try{action.run();}catch(Exception e){message.setText("Falha na negociação: "+e.getMessage());disable();e.printStackTrace();}}
         int value(JSpinner input){try{input.commitEdit();}catch(java.text.ParseException e){throw new IllegalArgumentException("Valor inválido.");}return ((Number)input.getValue()).intValue();}
@@ -189,11 +190,20 @@ public final class TransferNegotiation {
             if(!valid())return;if(contract){salary();return;}
             int amount=value(offer);if(!incoming&&amount>buyer.kb()){message.setText("Dinheiro insuficiente.");return;}
             begin();rounds++;
-            Decision decision=incoming?buyerDecision(amount,maximum,rounds):sellerDecision(amount,minimum,rounds);
+            Decision decision;
+            if(incoming) decision=buyerRound(amount,lastDemand,currentBuyerOffer,maximum,rounds,variation);
+            else decision=sellerRound(amount,lastOffer,counter>0?counter:minimum,floor,rounds,variation);
             if(decision==Decision.REJECT){reject("O clube encerrou a negociação sem acordo.");return;}
             if(decision==Decision.ACCEPT){agreement(amount);return;}
-            counter=incoming?maximum:minimum;accept.setVisible(true);accept.setText("Aceitar "+cash(counter));
-            message.setText((incoming?buyer:seller).getNome()+" propõe "+cash(counter)+". Rodada "+rounds+"/3.");
+            if(incoming){
+                currentBuyerOffer=nextBuyerOffer(amount,lastDemand,currentBuyerOffer,maximum,rounds,variation);
+                lastDemand=amount;counter=currentBuyerOffer;
+            }else{
+                counter=nextSellerAsk(amount,lastOffer,counter>0?counter:minimum,floor,rounds,variation);
+                lastOffer=amount;
+            }
+            accept.setVisible(true);accept.setText("Aceitar "+cash(counter));
+            message.setText((incoming?buyer:seller).getNome()+" propõe "+cash(counter)+". Rodada "+rounds+"/4.");
         }
         void accept(){if(!valid()||counter<=0)return;begin();if(contract){wage.setValue(Math.min(100000000,counter));salary();}else agreement(counter);}
         void agreement(int price){
